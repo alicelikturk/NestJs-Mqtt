@@ -25,41 +25,36 @@ client.on('connect', function () {
   client.subscribe('SCOS', { qos: 0 });
   client.subscribe('SCOR', { qos: 0 });
 
+  
   let i = 1;
   interval = setInterval(() => {
+
     var message = `*SCOR,OM,123456789123456,Q0,412,${getRndBatteryLevel()},28#`;
     client.publish('SCOR', message, function () {
       logger.log(`Device has sent       : ${message}`);
       i++;
     });
+
   }, 5000);
 
 });
 
-client.on('error', (err) => {
-  logger.log(`Bir hata oluştu. ${err}`);
-  client.end();
-});
-
-client.on('close', () => {
-  logger.log('CloudAMQP ile bağlantı kesildi');
-});
-
 client.on('message', function (topic, message, packet) {
-  // logger.log("Received '" + message + "' on '" + topic + "'");
-  // logger.log(JSON.stringify(packet));
-  if (!message.toString().startsWith('*') || !message.toString().endsWith('#'))
-    console.log('Unexpected string standart');
-  else {
-    let dataObj = parseDeviceData(message);
+
+  if (!message.toString().startsWith('*') || !message.toString().endsWith('#')){
+    console.log('Unknown data standard');
+    return;
+  }
+ 
+  let dataObj = parseDeviceData(message);
 
     if (dataObj.DATA_RESOURCE === 'SCOR') {
 
-      var receiverMessage = `Imei: ${dataObj.IMEI} Voltage ${dataObj.VOLTAGE} Battery Level ${dataObj.BATTERY_LEVEL}% Network Signal ${dataObj.NETWORK_SIGNAL}%`;
+      var receiverMessage = `Imei: ${dataObj.IMEI} Voltage: ${dataObj.VOLTAGE} Battery Level: ${dataObj.BATTERY_LEVEL}% Network Signal: ${dataObj.NETWORK_SIGNAL}%`;
       logger.log(`Server has received   : ${receiverMessage} \n`);
 
       if (dataObj.BATTERY_LEVEL < 40) {
-        var sender_message = `*SCOS,OM,123456789123456,R0#`;
+        var sender_message = `*SCOS,${dataObj.VENDOR_CODE},${dataObj.IMEI},R0#`;
         client.publish('SCOS', sender_message, function () {
           logger.log(`Server has sent       : ${sender_message}`);
         });
@@ -67,7 +62,7 @@ client.on('message', function (topic, message, packet) {
 
     } else if (dataObj.DATA_RESOURCE === 'SCOS') {
 
-      var receiverMessage = `Imei: ${dataObj.IMEI} Instruction ${dataObj.INSTRUCTION}`;
+      var receiverMessage = `Imei: ${dataObj.IMEI} Instruction: ${dataObj.INSTRUCTION}`;
       logger.log(`Device has received   : ${receiverMessage} \n`);
 
       if (dataObj.INSTRUCTION === 'R0') {
@@ -78,7 +73,15 @@ client.on('message', function (topic, message, packet) {
         }, 10000);
       }
     }
-  }
+});
+
+client.on('error', (err) => {
+  logger.log(`Bir hata oluştu. ${err}`);
+  client.end();
+});
+
+client.on('close', () => {
+  logger.log('CloudAMQP ile bağlantı kesildi');
 });
 
 function getRndBatteryLevel() {
